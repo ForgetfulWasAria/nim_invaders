@@ -100,27 +100,30 @@ proc A(s:Cpu): uint8 = s.Reg[7]
 proc `A=`(s: var Cpu, value: uint8) = s.Reg[7] = value
 
 # Register Pair related methods
-proc BC(s:Cpu): uint16 = (uint16(s.B) shl 8) + s.C
+proc BC(s:Cpu): uint16 = 
+  (uint16(s.B) shl 8) + s.C
 proc `BC=`(s: var Cpu, value: uint16): uint16 = 
   s.B = uint8(value shr 8)
   s.C = uint8(value and 0xFF)
 
-proc DE(s:Cpu): uint16 = (uint16(s.D) shl 8) + s.E
+proc DE(s:Cpu): uint16 = 
+  (uint16(s.D) shl 8) + s.E
 proc `DE=`(s: var Cpu, value: uint16): uint16 = 
   s.D = uint8(value shr 8)
   s.E = uint8(value and 0xFF)
 
-proc HL(s:Cpu): uint16 = (uint16(s.H) shl 8) + s.L
+proc HL(s:Cpu): uint16 = 
+  (uint16(s.H) shl 8) + s.L
 proc `HL=`(s: var Cpu, value: uint16): uint16 = 
   s.H = uint8(value shr 8)
   s.L = uint8(value and 0xFF)
 
-proc AF(s:Cpu): uint16 = (uint16(s.A) shl 8) + s.F
+proc AF(s:Cpu): uint16 = 
+  (uint16(s.A) shl 8) + s.F
 proc `AFL=`(s: var Cpu, value: uint16): uint16 = 
   s.A = uint8(value shr 8)
   s.F = uint8(value and 0xFF)
 
 # Special Cases
 proc M(s:Cpu): uint8 = 
-  var address: uint16 = s.HL
-  s.memory.read(address)
+  s.memory.read(s.HL)
