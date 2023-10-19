@@ -28,22 +28,21 @@ proc clear*(s: var Memory) =
   for i in 0..s.mem.len:
     s.mem[i] = 0
 
-proc read*(s: Memory, address: uint16): uint8 =
-  s.mem[address mod s.capacity]
+proc read8*(s: Memory, address: uint16): uint8 =
+  s.mem[if address > s.capacity: address mod s.capacity else: address]
 
 proc read16*(s: Memory, address: uint16): uint16 =
-  let a: uint16 = address mod s.capacity
+  let a: uint16 = if address > s.capacity: address mod s.capacity else: address
   if a < (s.capacity - 1): 
     uint16(s.mem[a]) shl 8 + uint16(s.mem[a + 1])
   else:
     uint16(s.mem[s.capacity]) shl 8 + uint16(s.mem[0])
 
-
-proc write*(s: var Memory, address: uint16, value: uint8) =
-  s.mem[address mod s.capacity] = value
+proc write8*(s: var Memory, address: uint16, value: uint8) =
+  s.mem[if address > s.capacity: address mod s.capacity else: address] = value
 
 proc write16*(s: var Memory, address: uint16, value: uint16) =
-  let a: uint16 = address mod s.capacity
+  let a: uint16 = if address > s.capacity: address mod s.capacity else: address
   if a >= s.romStart and a <= s.romEnd: return
   
   let low: uint8 = uint8(address and 255)

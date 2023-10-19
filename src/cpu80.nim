@@ -126,4 +126,6 @@ proc `AFL=`(s: var Cpu, value: uint16): uint16 =
 
 # Special Cases
 proc M(s:Cpu): uint8 = 
-  s.memory.read(s.HL)
+  s.memory.read8(s.HL)
+proc `M=`(s: var Cpu, value: uint8) =
+  s.memory.write8(s.HL, value)
