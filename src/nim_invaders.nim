@@ -1,5 +1,5 @@
-# This is just an example to get you started. A typical binary package
-# uses this file as the main entry point of the application.
+import memory
+import cpu80
 
-when isMainModule:
-  echo("Hello, World!")
+var m: Memory = newMemory(65535.uint16, 0.uint16, 255.uint16)
+var cpu: Cpu = newCpu(m)
