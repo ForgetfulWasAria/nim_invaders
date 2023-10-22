@@ -224,6 +224,10 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.adjustZero(r)
         s.adjustParity(r)
       
+      of 0x0A: # LDAX B
+        s.A = s.memory.read8(s.BC)
+        curCycles = 7
+
       of 0x11: # LXI D, D16
         s.DE = s.fetch16
         curCycles = 10
@@ -232,9 +236,14 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.memory.write8(s.DE, s.A)
         curCycles = 7
 
+      of 0x1A: # LDAX D
+        s.A = s.memory.read8(s.DE)
+        curCycles = 7
+
       of 0x21: # LXI H, D16
         s.HL = s.fetch16
         curCycles = 10
+
       of 0x27: # DAA fixme
         var bcdLow = s.A and 0b0000_1111
         var bcdHi = s.A and 0b1111_0000
@@ -253,6 +262,7 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.adjustCarry(r, int(s.A), adjDAA, Add)
         s.A = s.A + uint8(adjDAA)
         curCycles =4
+
       of 0x2F: # CMA
         s.A = not s.A
         curCycles = 4
@@ -279,14 +289,21 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.isHalted = true
         curCycles = 74
       
-      of 0x80..0x87: # ADD A, Reg
+      of 0x80..0x87: # ADD Reg
+        a = int(s.A)
         if z == 6:
-          result = s.A.int + s.M.int
+          b = int(s.M)
           curCycles = 7
         else:
-          result = s.A.int + s.Reg[z].int
+          b = int(s.Reg[z])
           curCycles = 4
-        # Fixme
+        r = a + b
+        s.adjustSign(r)
+        s.adjustZero(r)
+        s.adjustParity(r)
+        s.adjustAuxCarry(r, a, b)
+        s.adjustCarry(r, a, b, Add)
+        s.A = uint8(r and 0xFF)
       
       of 0xcb, 0xdd, 0xed, 0xfd: # Unused by 8080 
         curCycles = 4
