@@ -289,7 +289,8 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.isHalted = true
         curCycles = 74
       
-      of 0x80..0x87: # ADD Reg
+      # Handles both ADD Reg and ADC Reg
+      of 0x80..0x8F:
         a = int(s.A)
         if z == 6:
           b = int(s.M)
@@ -297,7 +298,8 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         else:
           b = int(s.Reg[z])
           curCycles = 4
-        r = a + b
+        r = a + b 
+        if s.Carry and (y == 1): r += 1
         s.adjustSign(r)
         s.adjustZero(r)
         s.adjustParity(r)
