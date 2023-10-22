@@ -3,8 +3,8 @@ import memory
 type 
   Register = array[8, uint8]
 
-  RegNames = enum
-    regB, regC, regD, regE, regH, regL, regM, regA
+  #RegNames = enum
+  #  regB, regC, regD, regE, regH, regL, regM, regA
   
   CarryType = enum
     Add, Sub, Logic, Rotate
@@ -172,8 +172,8 @@ proc execute*(s: var Cpu, maxCycles: int): int =
     ]#
     let y: int = opcode and 56 # bits 3-5
     let z: int = opcode and 7  # bits 0-2
-    let p: int = opcode and 48 # bits 4-5
-    let q: int = opcode and 8 # bit 3
+    #let p: int = opcode and 48 # bits 4-5
+    #let q: int = opcode and 8 # bit 3
 
     # Temp variables used for adjusting flags
     var r: int = 0
@@ -224,6 +224,15 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.adjustZero(r)
         s.adjustParity(r)
       
+      # Handles RLC
+      of 0x07:
+        s.Carry = if (s.A and 0b1000_000) > 0: true else: false
+        s.A = s.A.shl 1
+      # RRC
+      of  0x0F:
+        s.Carry = if (s.A and 0b0000_0001) > 0: true else: false
+        s.A = s.A.shr 1
+            
       of 0x0A: # LDAX B
         s.A = s.memory.read8(s.BC)
         curCycles = 7
@@ -235,10 +244,22 @@ proc execute*(s: var Cpu, maxCycles: int): int =
       of 0x12: # STAX D
         s.memory.write8(s.DE, s.A)
         curCycles = 7
+      
+      # RAL
+      of 0x17:
+        let oldCarry: uint8 = if s.Carry: 1 else: 0
+        s.Carry = if (s.A and 0b1000_0000) > 0: true else: false
+        s.A = s.A.shl 1 + oldCarry
 
       of 0x1A: # LDAX D
         s.A = s.memory.read8(s.DE)
         curCycles = 7
+      
+      # RAR
+      of 0x1F:
+        let oldCarry: uint8 = if s.Carry: 1 else: 0
+        s.Carry = if (s.A and 0b0000_0001) > 0: true else: false
+        s.A = s.A.shl 1 + oldCarry * 0b1000_0000
 
       of 0x21: # LXI H, D16
         s.HL = s.fetch16
@@ -334,6 +355,7 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         else:
           b = int(s.Reg[z])
           curCycles = 4
+        # The case numbers come from the Intel 8080 programmer's manual.
         r = case y:
           of 0b100:
             a and b
@@ -349,6 +371,25 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.adjustAuxCarry(r, a, b)
         s.adjustCarry(r, a, b, Add)
         s.A = uint8(r and 0xFF)
+
+      # Handles CMP Reg
+      of 0xB8..0xBF:
+        a = int(s.A)
+        if z == 6:
+          b = int(s.M)
+          curCycles = 7
+        else:
+          b = int(s.Reg[z])
+          curCycles = 4
+        r = a - b 
+        s.adjustSign(r)
+        s.adjustZero(r)
+        s.adjustParity(r)
+        s.adjustAuxCarry(r, a, b)
+        s.adjustCarry(r, a, b, Sub)
+        # CMP is just SUB but doesn't update the accumulator.
+
+      
 
       of 0xcb, 0xdd, 0xed, 0xfd: # Unused by 8080 
         curCycles = 4
