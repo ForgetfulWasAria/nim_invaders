@@ -63,19 +63,19 @@ proc `F=`(s: var Cpu, value: uint8) =
   s.Parity = bool(value and 4)
   s.Carry = bool(value and 1)
 
-proc testSign(s: var Cpu, r: int) =
+proc adjustSign(s: var Cpu, r: int) =
   s.Sign = if r < 0: true else: false
 
-proc testZero(s: var Cpu, r: int) =
+proc adjustZero(s: var Cpu, r: int) =
   s.Zero = if r == 0: true else: false
 
-proc testCarry(s: var Cpu, r: int, a: int, b: int, c: CarryType ) =
+proc adjustCarry(s: var Cpu, r: int, a: int, b: int, c: CarryType ) =
   discard # Fixme
 
-proc testAuxCarry(s: var Cpu, r: int, a: int, b: int) =
+proc adjustAuxCarry(s: var Cpu, r: int, a: int, b: int) =
   s.AuxCarry = if (a and 8) + (b and 8) > (r and 8): true else: false 
 
-proc testParity(s: var Cpu, r: int) =
+proc adjustParity(s: var Cpu, r: int) =
   discard # Fixme
 
 # Register related methods
@@ -183,13 +183,58 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         curCycles = 4
 
       of 0x01: # LXI B, D16
-        s.BC = s.fetch
+        s.BC = s.fetch16
+        curCycles = 10
+
+      of 0x04, 0x0C, 0x14, 0x1C, 0x24, 0x2C, 0x34, 0x3C: # INR Reg
+        var r: int
+        if y == 6:
+          r = int(s.M) + 1
+          var a: int = int(s.M)
+          s.M = s.M + 1
+          s.adjustAuxCarry(r, a, 1)
+        else:  
+          r = int(s.Reg[y]) + 1
+          s.Reg[y] = s.Reg[y] + 1
+          s.adjustAuxCarry(r, int(s.Reg[y]), 1)
+        s.adjustSign(r)
+        s.adjustZero(r)
+        s.adjustParity(r)
+
+      of 0x05, 0x0D, 0x15, 0x1D, 0x25, 0x2D, 0x35, 0x3D: # DCR Reg
+        var r: int
+        if y == 6:
+          r = int(s.M) - 1
+          var a: int = int(s.M)
+          s.M = s.M - 1
+          s.adjustAuxCarry(r, a, 1)
+        else:  
+          r = int(s.Reg[y]) - 1
+          s.Reg[y] = s.Reg[y] - 1
+          s.adjustAuxCarry(r, int(s.Reg[y]), 1)
+        s.adjustSign(r)
+        s.adjustZero(r)
+        s.adjustParity(r)
       of 0x11: # LXI D, D16
         s.DE = s.fetch16
+        curCycles = 10
       of 0x21: # LXI H, D16
         s.HL = s.fetch16
+        curCycles = 10
+      of 0x2F: # CMA
+        s.A = not s.A
+        curCycles = 4
       of 0x31: # LXI SP, D16
         s.SP = s.fetch16
+        curCycles = 10
+      
+      of 0x37: # STC
+        s.Carry = true
+        curCycles = 4
+      of 0x3F: # CMC
+        s.Carry = not s.Carry
+        curCycles = 4
+
       of 0x40..0x75, 0x77..0x7F: # MOV Reg, Reg
         if y == 6:
           s.M = s.Reg[z]
@@ -203,15 +248,17 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         curCycles = 74
       
       of 0x80..0x87: # ADD A, Reg
-        var result: int = 0
         if z == 6:
           result = s.A.int + s.M.int
           curCycles = 7
         else:
           result = s.A.int + s.Reg[z].int
           curCycles = 4
-
+        # Fixme
       
+      of 0xcb, 0xdd, 0xed, 0xfd: # Unused by 8080 
+        curCycles = 4
+
       else: 
         echo "unimplemented instruction"
         curCycles = 4
