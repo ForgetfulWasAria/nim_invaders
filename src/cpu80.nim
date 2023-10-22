@@ -191,6 +191,10 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.BC = s.fetch16
         curCycles = 10
 
+      of 0x02: # STAX B
+        s.memory.write8(s.BC, s.A)
+        curCycles = 7
+
       of 0x04, 0x0C, 0x14, 0x1C, 0x24, 0x2C, 0x34, 0x3C: # INR Reg
         var r: int
         if y == 6:
@@ -219,9 +223,15 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.adjustSign(r)
         s.adjustZero(r)
         s.adjustParity(r)
+      
       of 0x11: # LXI D, D16
         s.DE = s.fetch16
         curCycles = 10
+      
+      of 0x12: # STAX D
+        s.memory.write8(s.DE, s.A)
+        curCycles = 7
+
       of 0x21: # LXI H, D16
         s.HL = s.fetch16
         curCycles = 10
