@@ -53,8 +53,8 @@ proc reset*(s: var Cpu) =
 
 # Flag related methods
 proc F(s: Cpu): uint8 =
-  uint8(s.Sign) * 128 + uint8(s.Zero) * 64 + 32 + uint8(s.AuxCarry) * 16 +
-  8 + uint8(s.Parity) * 4 + 2 + uint8(s.Carry)
+  uint8(s.Sign) * 128 + uint8(s.Zero) * 64 + uint8(s.AuxCarry) * 16 +
+  uint8(s.Parity) * 4 + 2 + uint8(s.Carry)
 
 proc `F=`(s: var Cpu, value: uint8) =
   s.Sign = bool(value and 128)
