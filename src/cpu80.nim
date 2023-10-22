@@ -307,6 +307,49 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.adjustCarry(r, a, b, Add)
         s.A = uint8(r and 0xFF)
       
+      # Handles both SUB Reg and SBB Reg
+      of 0x90..0x9F:
+        a = int(s.A)
+        if z == 6:
+          b = int(s.M)
+          curCycles = 7
+        else:
+          b = int(s.Reg[z])
+          curCycles = 4
+        r = a - b 
+        if s.Carry and (y == 3): r -= 1
+        s.adjustSign(r)
+        s.adjustZero(r)
+        s.adjustParity(r)
+        s.adjustAuxCarry(r, a, b)
+        s.adjustCarry(r, a, b, Sub)
+        s.A = uint8(r and 0xFF)
+      
+      # Handles ANA Reg, XRA Reg, ORA Reg
+      of 0xA0..0xB7:
+        a = int(s.A)
+        if z == 6:
+          b = int(s.M)
+          curCycles = 7
+        else:
+          b = int(s.Reg[z])
+          curCycles = 4
+        r = case y:
+          of 0b100:
+            a and b
+          of 0b101:
+            a xor b
+          of 0b110:
+            a or b
+          else:
+            0
+        s.adjustSign(r)
+        s.adjustZero(r)
+        s.adjustParity(r)
+        s.adjustAuxCarry(r, a, b)
+        s.adjustCarry(r, a, b, Add)
+        s.A = uint8(r and 0xFF)
+
       of 0xcb, 0xdd, 0xed, 0xfd: # Unused by 8080 
         curCycles = 4
 
