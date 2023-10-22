@@ -174,6 +174,11 @@ proc execute*(s: var Cpu, maxCycles: int): int =
     let z: int = opcode and 7  # bits 0-2
     let p: int = opcode and 48 # bits 4-5
     let q: int = opcode and 8 # bit 3
+
+    # Temp variables used for adjusting flags
+    var r: int = 0
+    var a: int = 0
+    var b: int = 0
   #[
     Execute
   ]#
@@ -190,7 +195,7 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         var r: int
         if y == 6:
           r = int(s.M) + 1
-          var a: int = int(s.M)
+          a = int(s.M)
           s.M = s.M + 1
           s.adjustAuxCarry(r, a, 1)
         else:  
@@ -202,10 +207,9 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.adjustParity(r)
 
       of 0x05, 0x0D, 0x15, 0x1D, 0x25, 0x2D, 0x35, 0x3D: # DCR Reg
-        var r: int
         if y == 6:
           r = int(s.M) - 1
-          var a: int = int(s.M)
+          a = int(s.M)
           s.M = s.M - 1
           s.adjustAuxCarry(r, a, 1)
         else:  
@@ -221,6 +225,24 @@ proc execute*(s: var Cpu, maxCycles: int): int =
       of 0x21: # LXI H, D16
         s.HL = s.fetch16
         curCycles = 10
+      of 0x27: # DAA fixme
+        var bcdLow = s.A and 0b0000_1111
+        var bcdHi = s.A and 0b1111_0000
+        var adjDAA: int = 0
+        if s.AuxCarry or bcdLow > 9:
+          adjDAA = 0x06
+          if adjDAA + int(bcdLow) > 15: s.AuxCarry = true
+        else:
+          s.AuxCarry = false
+        if s.Carry or (bcdHi + uint8(s.AuxCarry)) > 9:
+          adjDAA += 0x60
+        r = int(s.A) + adjDAA
+        s.adjustZero(r)
+        s.adjustSign(r)
+        s.adjustParity(r)
+        s.adjustCarry(r, int(s.A), adjDAA, Add)
+        s.A = s.A + uint8(adjDAA)
+        curCycles =4
       of 0x2F: # CMA
         s.A = not s.A
         curCycles = 4
