@@ -234,6 +234,16 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.adjustSign(r)
         s.adjustZero(r)
         s.adjustParity(r)
+
+      # MVI Reg
+      of 0x06, 0x0E, 0x16, 0x1E, 0x26, 0x2E, 0x36, 0x3E:
+        var data = s.fetch()
+        if y == 0x110:
+          s.memory.write8(s.HL, data)
+          curCycles = 10
+        else:
+          s.Reg[z] = data
+          curCycles = 7
       
       # Handles RLC
       of 0x07:
@@ -506,6 +516,54 @@ proc execute*(s: var Cpu, maxCycles: int): int =
             discard
         s.SP = s.SP - 2
         curCycles = 4
+      
+      # ADI d8, ACI d8 
+      of 0xC6, 0xCE:
+        a = int(s.A)
+        b = int(s.fetch())
+        r = a + b 
+        if y == 0b001 and s.Carry: r = r + 1  
+        s.A = s.A + uint8(r)
+        s.adjustSign(r)
+        s.adjustZero(r)
+        s.adjustAuxCarry(r, a, b)
+        s.adjustParity(r)
+        s.adjustCarry(r, a, b, Add)
+        curCycles = 7
+
+      # SUI d8, SBI d8, CPI d8
+      of 0xD6, 0xDE, 0xFE:
+        a = int(s.A)
+        b = int(s.fetch())
+        r = a - b
+        # SBI checks for borrow
+        if y == 0b110 and s.Carry: r = r - 1
+        # CPI does not change the accumulator  
+        if y != 0b111: s.A = s.A - uint8(b)
+        s.adjustSign(r)
+        s.adjustZero(r)
+        s.adjustAuxCarry(r, a, b)
+        s.adjustParity(r)
+        s.adjustCarry(r, a, b, Sub)
+        curCycles = 7
+
+        # ANI d8, XRI d8, ORI d8
+      of 0xE6, 0xEE, 0xF6:
+        a = int(s.A)
+        b = int(s.fetch())
+        r = case y:
+          of 0b100: a and b
+          of 0b101: a xor b
+          of 0b110: a or b
+          else:
+            0
+        s.A = uint8(r and 255)
+        s.adjustSign(r)
+        s.adjustZero(r)
+        s.adjustAuxCarry(r, a, b)
+        s.adjustParity(r)
+        s.adjustCarry(r, a, b, Logic)
+        curCycles = 7
 
       # XTHL
       of 0xE3:
