@@ -129,12 +129,14 @@ proc `HL=`(s: var Cpu, value: uint16) =
   s.H = uint8(value shr 8)
   s.L = uint8(value and 0xFF)
 
+#[
 proc PSW(s:Cpu): uint16 = 
   (uint16(s.A) shl 8) + s.F
 
 proc `PSW=`(s: var Cpu, value: uint16) = 
   s.A = uint8(value shr 8)
   s.F = uint8(value and 0xFF)
+]#
 
 # Special Cases
 proc M(s:Cpu): uint8 = 
@@ -172,7 +174,7 @@ proc execute*(s: var Cpu, maxCycles: int): int =
     ]#
     let y: int = opcode and 56 # bits 3-5
     let z: int = opcode and 7  # bits 0-2
-    #let p: int = opcode and 48 # bits 4-5
+    let p: int = opcode and 48 # bits 4-5
     #let q: int = opcode and 8 # bit 3
 
     # Temp variables used for adjusting flags
@@ -194,6 +196,11 @@ proc execute*(s: var Cpu, maxCycles: int): int =
       of 0x02: # STAX B
         s.memory.write8(s.BC, s.A)
         curCycles = 7
+      
+      # INX B
+      of 0x03:
+        s.BC = s.BC + 1
+        curCycles = 5
 
       of 0x04, 0x0C, 0x14, 0x1C, 0x24, 0x2C, 0x34, 0x3C: # INR Reg
         var r: int
@@ -202,10 +209,12 @@ proc execute*(s: var Cpu, maxCycles: int): int =
           a = int(s.M)
           s.M = s.M + 1
           s.adjustAuxCarry(r, a, 1)
+          curCycles = 10
         else:  
           r = int(s.Reg[y]) + 1
           s.Reg[y] = s.Reg[y] + 1
           s.adjustAuxCarry(r, int(s.Reg[y]), 1)
+          curCycles = 5
         s.adjustSign(r)
         s.adjustZero(r)
         s.adjustParity(r)
@@ -216,10 +225,12 @@ proc execute*(s: var Cpu, maxCycles: int): int =
           a = int(s.M)
           s.M = s.M - 1
           s.adjustAuxCarry(r, a, 1)
+          curCycles = 10
         else:  
           r = int(s.Reg[y]) - 1
           s.Reg[y] = s.Reg[y] - 1
           s.adjustAuxCarry(r, int(s.Reg[y]), 1)
+          curCycles = 5
         s.adjustSign(r)
         s.adjustZero(r)
         s.adjustParity(r)
@@ -228,14 +239,29 @@ proc execute*(s: var Cpu, maxCycles: int): int =
       of 0x07:
         s.Carry = if (s.A and 0b1000_000) > 0: true else: false
         s.A = s.A.shl 1
+        curCycles = 4
+
+      # DAD BC
+      of 0x09:  
+        s.adjustCarry(int(s.HL + s.BC), int(s.HL), int(s.BC), Add)
+        s.HL = s.HL + s.BC
+        curCycles = 10
+
+
       # RRC
       of  0x0F:
         s.Carry = if (s.A and 0b0000_0001) > 0: true else: false
         s.A = s.A.shr 1
+        curCycles = 4
             
       of 0x0A: # LDAX B
         s.A = s.memory.read8(s.BC)
         curCycles = 7
+      
+      # DCX B
+      of 0x0B:
+        s.BC = s.BC - 1
+        curCycles = 5
 
       of 0x11: # LXI D, D16
         s.DE = s.fetch16
@@ -245,25 +271,48 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.memory.write8(s.DE, s.A)
         curCycles = 7
       
+      # INX D
+      of 0x13:
+        s.DE = s.DE + 1
+        curCycles = 5
+      
       # RAL
       of 0x17:
         let oldCarry: uint8 = if s.Carry: 1 else: 0
         s.Carry = if (s.A and 0b1000_0000) > 0: true else: false
         s.A = s.A.shl 1 + oldCarry
+        curCycles = 4
+      
+      # DAD DE
+      of 0x19:  
+        s.adjustCarry(int(s.HL + s.DE), int(s.HL), int(s.DE), Add)
+        s.HL = s.HL + s.DE
+        curCycles = 10
 
       of 0x1A: # LDAX D
         s.A = s.memory.read8(s.DE)
         curCycles = 7
+
+      # DCX D
+      of 0x1B:
+        s.DE = s.DE - 1
+        curCycles = 5
       
       # RAR
       of 0x1F:
         let oldCarry: uint8 = if s.Carry: 1 else: 0
         s.Carry = if (s.A and 0b0000_0001) > 0: true else: false
         s.A = s.A.shl 1 + oldCarry * 0b1000_0000
+        curCycles = 4
 
       of 0x21: # LXI H, D16
         s.HL = s.fetch16
         curCycles = 10
+
+      # INX H
+      of 0x23:
+        s.HL = s.HL + 1
+        curCycles = 5
 
       of 0x27: # DAA fixme
         var bcdLow = s.A and 0b0000_1111
@@ -284,16 +333,45 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.A = s.A + uint8(adjDAA)
         curCycles =4
 
+      # DAD HL
+      of 0x29:  
+        s.adjustCarry(int(s.HL + s.HL), int(s.HL), int(s.HL), Add)
+        s.HL = s.HL + s.HL
+        curCycles = 10
+      
+      # DCX H
+      of 0x2B:
+        s.HL = s.HL - 1
+        curCycles = 5
+
       of 0x2F: # CMA
         s.A = not s.A
         curCycles = 4
+
       of 0x31: # LXI SP, D16
         s.SP = s.fetch16
         curCycles = 10
       
+      # INX SP
+      of 0x33:
+        s.SP = s.SP + 1
+        curCycles = 5
+      
       of 0x37: # STC
         s.Carry = true
         curCycles = 4
+      
+      # DAD SP
+      of 0x39:  
+        s.adjustCarry(int(s.HL + s.SP), int(s.HL), int(s.SP), Add)
+        s.HL = s.HL + s.SP
+        curCycles = 10
+      
+      # DCX SP
+      of 0x3B:
+        s.SP = s.SP - 1
+        curCycles = 5
+      
       of 0x3F: # CMC
         s.Carry = not s.Carry
         curCycles = 4
@@ -308,7 +386,7 @@ proc execute*(s: var Cpu, maxCycles: int): int =
 
       of 0x76: # HALT
         s.isHalted = true
-        curCycles = 74
+        curCycles = 7
       
       # Handles both ADD Reg and ADC Reg
       of 0x80..0x8F:
@@ -388,10 +466,65 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.adjustAuxCarry(r, a, b)
         s.adjustCarry(r, a, b, Sub)
         # CMP is just SUB but doesn't update the accumulator.
-
       
+      # POP RegPair
+      of 0xC1, 0xD1, 0xE1, 0xF1:
+        case p:
+          of 0b00:
+            s.B = s.memory.read8(s.SP + 1)
+            s.C = s.memory.read8(s.SP)
+          of 0b01:
+            s.D = s.memory.read8(s.SP + 1)
+            s.E = s.memory.read8(s.SP)
+          of 0b10:
+            s.H = s.memory.read8(s.SP + 1)
+            s.L = s.memory.read8(s.SP)
+          of 0b11:
+            s.A = s.memory.read8(s.SP + 1)
+            s.F = s.memory.read8(s.SP)
+          else:
+            discard
+        s.SP = s.SP + 2
+        curCycles = 4
 
-      of 0xcb, 0xdd, 0xed, 0xfd: # Unused by 8080 
+      # PUSH RegPair
+      of 0xC5, 0xD5, 0xE5, 0xF5:
+        case p:
+          of 0b00:
+            s.memory.write8(s.SP - 1, s.B)
+            s.memory.write8(s.SP - 2, s.C)
+          of 0b01:
+            s.memory.write8(s.SP - 1, s.D)
+            s.memory.write8(s.SP - 2, s.E)
+          of 0b10:
+            s.memory.write8(s.SP - 1, s.H)
+            s.memory.write8(s.SP - 2, s.L)
+          of 0b11:
+            s.memory.write8(s.SP - 1, s.A)
+            s.memory.write8(s.SP - 2, s.F)
+          else:
+            discard
+        s.SP = s.SP - 2
+        curCycles = 4
+
+      # XTHL
+      of 0xE3:
+        var tmp = s.memory.read8(s.SP)
+        s.memory.write8(s.SP, s.L)
+        s.L = tmp
+        tmp = s.memory.read8(s.SP + 1)
+        s.memory.write8(s.SP + 1, s.H)
+        s.H = tmp
+
+
+      # XCHG
+      of 0xEB:
+        var tmp = s.HL
+        s.HL = s.DE
+        s.DE = tmp
+        curCycles = 5
+
+      of 0xCB, 0xDD, 0xED, 0xFD: # Unused by 8080 
         curCycles = 4
 
       else: 
