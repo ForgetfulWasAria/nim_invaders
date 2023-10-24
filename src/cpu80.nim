@@ -547,6 +547,8 @@ proc execute*(s: var Cpu, maxCycles: int): int =
             s.Sign == false
           of 0x111: # JM
             s.Sign == true
+          else:
+            false
         if cond:
           s.PC = address
           curCycles = 10
