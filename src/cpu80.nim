@@ -503,6 +503,34 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.adjustCarry(r, a, b, Sub)
         # CMP is just SUB but doesn't update the accumulator.
       
+      # RNZ, RNC, RPO, RP, RZ, RC, RPE, RM
+      of 0xC0, 0xC8, 0xD0, 0xD8, 0xE0, 0xE8, 0xF0, 0xF8:
+        var cond = case y:
+          of 0x000: # RNZ
+            s.Zero == false
+          of 0x001: # RZ
+            s.Zero == true
+          of 0x010: # RNC
+            s.Carry == false
+          of 0x011: # RC
+            s.Carry == true
+          of 0x100: # RPO
+            s.Parity == false
+          of 0x101: # RPE
+            s.Parity == true
+          of 0x110: # RP
+            s.Sign == false
+          of 0x111: # RM
+            s.Sign == true
+          else:
+            false
+        if cond:
+          s.PC = s.memory.read16(s.SP)
+          s.SP = s.SP + 2
+          curCycles = 11
+        else:
+          curCycles = 5
+      
       # POP RegPair
       of 0xC1, 0xD1, 0xE1, 0xF1:
         case p:
@@ -624,6 +652,13 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.adjustParity(r)
         s.adjustCarry(r, a, b, Add)
         curCycles = 7
+      
+      # RET
+      of 0xC9:
+        s.PC = s.memory.read16(s.SP)
+        s.SP = s.SP + 2
+        curCycles = 10
+
 
       # CALL d16
       of 0xCD, 0xDD, 0xED, 0xFD:
