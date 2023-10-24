@@ -551,14 +551,45 @@ proc execute*(s: var Cpu, maxCycles: int): int =
             false
         if cond:
           s.PC = address
-          curCycles = 10
-        else:
-          curCycles = 3
+        curCycles = 10
+        
               
       # JMP d16
       of 0xC3:
         s.PC = s.fetch16()
         curCycles = 10
+      
+      # CNZ, CNC, CPO, CP, CZ, CC, CPE, CM
+      of 0xC4, 0xCC, 0xD4, 0xDC, 0xE4, 0xEC, 0xF4, 0xFC:
+        var address = s.fetch16()
+        s.memory.write16(s.SP - 2, s.PC)
+        s.SP = s.SP - 2
+        #[
+          cond is true if the associated condition is true regardless of
+          whether the associated flag is true or false
+        ]#
+        var cond = case y:
+          of 0x000: # CNZ
+            s.Zero == false
+          of 0x001: # CZ
+            s.Zero == true
+          of 0x010: # CNC
+            s.Carry == false
+          of 0x011: # CC
+            s.Carry == true
+          of 0x100: # CPO
+            s.Parity == false
+          of 0x101: # CPE
+            s.Parity == true
+          of 0x110: # CP
+            s.Sign == false
+          of 0x111: # CM
+            s.Sign == true
+          else:
+            false
+        if cond:
+          s.SP = address
+        curCycles = 17
 
       # PUSH RegPair
       of 0xC5, 0xD5, 0xE5, 0xF5:
@@ -593,6 +624,13 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.adjustParity(r)
         s.adjustCarry(r, a, b, Add)
         curCycles = 7
+
+      # CALL d16
+      of 0xCD, 0xDD, 0xED, 0xFD:
+        s.memory.write16(s.SP - 2, s.PC)
+        s.SP = s.SP - 2
+        s.PC = s.fetch16()
+        curCycles = 17
 
       # SUI d8, SBI d8, CPI d8
       of 0xD6, 0xDE, 0xFE:
@@ -648,9 +686,6 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.HL = s.DE
         s.DE = tmp
         curCycles = 5
-
-      of 0xCB, 0xDD, 0xED, 0xFD: # Unused by 8080 
-        curCycles = 4
 
       else: 
         echo "unimplemented instruction"
