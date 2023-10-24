@@ -316,8 +316,15 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         curCycles = 4
 
       of 0x21: # LXI H, D16
-        s.HL = s.fetch16
+        s.HL = s.fetch16()
         curCycles = 10
+      
+      # SHLD d16
+      of 0x22:
+        var address = s.fetch16()
+        s.memory.write8(address, s.L)
+        s.memory.write8(address + 1, s.H)
+        curCycles = 16
 
       # INX H
       of 0x23:
@@ -348,6 +355,13 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.adjustCarry(int(s.HL + s.HL), int(s.HL), int(s.HL), Add)
         s.HL = s.HL + s.HL
         curCycles = 10
+
+      # LHLD d 16
+      of 0x2A:
+        var address = s.fetch16()
+        s.L = s.memory.read8(address)
+        s.H = s.memory.read8(address)
+        curCycles = 16
       
       # DCX H
       of 0x2B:
@@ -361,6 +375,12 @@ proc execute*(s: var Cpu, maxCycles: int): int =
       of 0x31: # LXI SP, D16
         s.SP = s.fetch16
         curCycles = 10
+      
+      # STA d16
+      of 0x32:
+        var address = s.fetch16()
+        s.memory.write8(address, s.A)
+        curCycles = 13
       
       # INX SP
       of 0x33:
@@ -376,6 +396,12 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.adjustCarry(int(s.HL + s.SP), int(s.HL), int(s.SP), Add)
         s.HL = s.HL + s.SP
         curCycles = 10
+      
+      # LDA d16
+      of 0x3A:
+        var address = s.fetch16()
+        s.A = s.memory.read8(address)
+        curCycles = 13
       
       # DCX SP
       of 0x3B:
@@ -496,6 +522,41 @@ proc execute*(s: var Cpu, maxCycles: int): int =
             discard
         s.SP = s.SP + 2
         curCycles = 4
+      
+      # JNZ, JNC, JPO, JP, JZ, JC,JPE, JM  d16
+      of 0xC2, 0xCA, 0xD2, 0xDA, 0xE2, 0xEA, 0xF2, 0xFA:
+        var address = s.fetch16()
+        #[
+          cond is true if the associated condition is true regardless of
+          whether the associated flag is true or false
+        ]#
+        var cond = case y:
+          of 0x000: # JNZ
+            s.Zero == false
+          of 0x001: # JZ
+            s.Zero == true
+          of 0x010: # JNC
+            s.Carry == false
+          of 0x011: # JC
+            s.Carry == true
+          of 0x100: # JPO
+            s.Parity == false
+          of 0x101: # JPE
+            s.Parity == true
+          of 0x110: # JP
+            s.Sign == false
+          of 0x111: # JM
+            s.Sign == true
+        if cond:
+          s.PC = address
+          curCycles = 10
+        else:
+          curCycles = 3
+              
+      # JMP d16
+      of 0xC3:
+        s.PC = s.fetch16()
+        curCycles = 10
 
       # PUSH RegPair
       of 0xC5, 0xD5, 0xE5, 0xF5:
@@ -574,7 +635,11 @@ proc execute*(s: var Cpu, maxCycles: int): int =
         s.memory.write8(s.SP + 1, s.H)
         s.H = tmp
 
-
+      # PCHL
+      of 0xE9:
+        s.PC = s.HL
+        curCycles = 5
+      
       # XCHG
       of 0xEB:
         var tmp = s.HL
